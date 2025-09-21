@@ -130,12 +130,23 @@ class TetrisGame {
     bindEvents() {
         // 鍵盤控制
         document.addEventListener('keydown', (e) => {
-            if (!this.gameRunning) {
-                if (e.code !== 'KeyP') {
+            // 處理暫停/繼續
+            if (e.code === 'KeyP') {
+                e.preventDefault();
+                if (!this.gameRunning) {
                     this.startGame();
+                } else {
+                    this.togglePause();
                 }
+                return;
             }
             
+            // 如果遊戲未開始，除了P鍵外其他鍵都開始遊戲
+            if (!this.gameRunning) {
+                this.startGame();
+            }
+            
+            // 如果遊戲暫停，不處理其他按鍵
             if (this.gamePaused) return;
             
             switch(e.code) {
@@ -163,64 +174,69 @@ class TetrisGame {
                     e.preventDefault();
                     this.holdPiece();
                     break;
-                case 'KeyP':
-                    e.preventDefault();
-                    this.togglePause();
-                    break;
             }
         });
         
         // 觸控控制
         document.getElementById('moveLeft').addEventListener('click', () => {
-            if (this.gameRunning && !this.gamePaused) {
-                this.movePiece(-1, 0);
-            } else if (!this.gameRunning) {
+            if (!this.gameRunning) {
                 this.startGame();
+            } else if (!this.gamePaused) {
+                this.movePiece(-1, 0);
             }
         });
         
         document.getElementById('moveRight').addEventListener('click', () => {
-            if (this.gameRunning && !this.gamePaused) {
-                this.movePiece(1, 0);
-            } else if (!this.gameRunning) {
+            if (!this.gameRunning) {
                 this.startGame();
+            } else if (!this.gamePaused) {
+                this.movePiece(1, 0);
             }
         });
         
         document.getElementById('softDrop').addEventListener('click', () => {
-            if (this.gameRunning && !this.gamePaused) {
-                this.movePiece(0, 1);
-            } else if (!this.gameRunning) {
+            if (!this.gameRunning) {
                 this.startGame();
+            } else if (!this.gamePaused) {
+                this.movePiece(0, 1);
             }
         });
         
         document.getElementById('rotate').addEventListener('click', () => {
-            if (this.gameRunning && !this.gamePaused) {
-                this.rotatePiece();
-            } else if (!this.gameRunning) {
+            if (!this.gameRunning) {
                 this.startGame();
+            } else if (!this.gamePaused) {
+                this.rotatePiece();
             }
         });
         
         document.getElementById('hardDrop').addEventListener('click', () => {
-            if (this.gameRunning && !this.gamePaused) {
-                this.hardDrop();
-            } else if (!this.gameRunning) {
+            if (!this.gameRunning) {
                 this.startGame();
+            } else if (!this.gamePaused) {
+                this.hardDrop();
             }
         });
         
         document.getElementById('holdBtn').addEventListener('click', () => {
-            if (this.gameRunning && !this.gamePaused) {
-                this.holdPiece();
-            } else if (!this.gameRunning) {
+            if (!this.gameRunning) {
                 this.startGame();
+            } else if (!this.gamePaused) {
+                this.holdPiece();
             }
         });
         
         // 重新開始按鈕
         this.restartBtn.addEventListener('click', () => this.restartGame());
+        
+        // 暫停按鈕
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            if (!this.gameRunning) {
+                this.startGame();
+            } else {
+                this.togglePause();
+            }
+        });
         
         // 觸控事件
         this.canvas.addEventListener('touchstart', (e) => {
@@ -275,11 +291,22 @@ class TetrisGame {
         this.startTime = Date.now();
         this.gameOverElement.style.display = 'none';
         this.gameOverElement.classList.remove('show');
+        this.updatePauseButton();
     }
     
     togglePause() {
         if (this.gameRunning) {
             this.gamePaused = !this.gamePaused;
+            this.updatePauseButton();
+        }
+    }
+    
+    updatePauseButton() {
+        const pauseBtn = document.getElementById('pauseBtn');
+        if (this.gamePaused) {
+            pauseBtn.textContent = '繼續 (P)';
+        } else {
+            pauseBtn.textContent = '暫停 (P)';
         }
     }
     
