@@ -3,40 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>貪吃蛇遊戲</title>
+    <title>俄羅斯方塊</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="game-container">
         <div class="game-header">
-            <h1>貪吃蛇遊戲</h1>
+            <h1>俄羅斯方塊</h1>
             <div class="score-board">
                 <div class="score">分數: <span id="score">0</span></div>
+                <div class="lines">行數: <span id="lines">0</span></div>
+                <div class="level">等級: <span id="level">1</span></div>
                 <div class="high-score">最高分: <span id="high-score">0</span></div>
             </div>
         </div>
         
-        <div class="game-area">
-            <canvas id="gameCanvas" width="400" height="400"></canvas>
-            <div class="game-over" id="gameOver">
-                <h2>遊戲結束!</h2>
-                <p>你的分數: <span id="finalScore">0</span></p>
-                <button id="restartBtn">重新開始</button>
+        <div class="game-main">
+            <div class="game-sidebar left">
+                <div class="next-piece">
+                    <h3>下一個</h3>
+                    <canvas id="nextCanvas" width="120" height="120"></canvas>
+                </div>
+                <div class="hold-piece">
+                    <h3>存放</h3>
+                    <canvas id="holdCanvas" width="120" height="120"></canvas>
+                    <button id="holdBtn" class="hold-button">存放 (C)</button>
+                </div>
+            </div>
+            
+            <div class="game-area">
+                <canvas id="gameCanvas" width="300" height="600"></canvas>
+                <div class="game-over" id="gameOver">
+                    <h2>遊戲結束!</h2>
+                    <p>你的分數: <span id="finalScore">0</span></p>
+                    <p>消除行數: <span id="finalLines">0</span></p>
+                    <p>達到等級: <span id="finalLevel">1</span></p>
+                    <button id="restartBtn">重新開始</button>
+                </div>
+            </div>
+            
+            <div class="game-sidebar right">
+                <div class="controls">
+                    <h3>🎮 控制說明</h3>
+                    <div class="control-group">
+                        <h4>鍵盤控制</h4>
+                        <p>← → 移動</p>
+                        <p>↓ 快速下降</p>
+                        <p>↑ 旋轉</p>
+                        <p>空白鍵 瞬間下降</p>
+                        <p>C 存放方塊</p>
+                        <p>P 暫停</p>
+                    </div>
+                    <div class="control-group">
+                        <h4>觸控控制</h4>
+                        <div class="touch-controls">
+                            <button class="touch-btn" id="moveLeft">←</button>
+                            <button class="touch-btn" id="rotate">↻</button>
+                            <button class="touch-btn" id="moveRight">→</button>
+                            <button class="touch-btn" id="softDrop">↓</button>
+                            <button class="touch-btn" id="hardDrop">⬇</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
-        <div class="controls">
-            <h3>🎮 遊戲控制</h3>
-            <p>使用方向鍵 ↑ ↓ ← → 控制蛇的移動</p>
-            <p>按空白鍵暫停/繼續遊戲</p>
+        <div class="game-footer">
             <div class="game-stats">
                 <div class="stat-item">
-                    <span class="stat-icon">🐍</span>
-                    <span class="stat-text">長度: <span id="snakeLength">1</span></span>
+                    <span class="stat-icon">🧩</span>
+                    <span class="stat-text">方塊: <span id="piecesPlaced">0</span></span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-icon">⚡</span>
-                    <span class="stat-text">速度: <span id="gameSpeed">正常</span></span>
+                    <span class="stat-text">速度: <span id="gameSpeed">1</span></span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">⏱️</span>
+                    <span class="stat-text">時間: <span id="gameTime">00:00</span></span>
                 </div>
             </div>
         </div>

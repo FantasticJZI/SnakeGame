@@ -1,96 +1,225 @@
-class SnakeGame {
+class TetrisGame {
     constructor() {
+        // Canvas 元素
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
+        this.nextCanvas = document.getElementById('nextCanvas');
+        this.nextCtx = this.nextCanvas.getContext('2d');
+        this.holdCanvas = document.getElementById('holdCanvas');
+        this.holdCtx = this.holdCanvas.getContext('2d');
+        
+        // UI 元素
         this.scoreElement = document.getElementById('score');
+        this.linesElement = document.getElementById('lines');
+        this.levelElement = document.getElementById('level');
         this.highScoreElement = document.getElementById('high-score');
+        this.piecesPlacedElement = document.getElementById('piecesPlaced');
+        this.gameSpeedElement = document.getElementById('gameSpeed');
+        this.gameTimeElement = document.getElementById('gameTime');
         this.gameOverElement = document.getElementById('gameOver');
         this.finalScoreElement = document.getElementById('finalScore');
+        this.finalLinesElement = document.getElementById('finalLines');
+        this.finalLevelElement = document.getElementById('finalLevel');
         this.restartBtn = document.getElementById('restartBtn');
-        this.snakeLengthElement = document.getElementById('snakeLength');
-        this.gameSpeedElement = document.getElementById('gameSpeed');
+        this.holdBtn = document.getElementById('holdBtn');
         
         // 遊戲設定
-        this.gridSize = 20;
-        this.tileCount = this.canvas.width / this.gridSize;
+        this.BOARD_WIDTH = 10;
+        this.BOARD_HEIGHT = 20;
+        this.BLOCK_SIZE = 30;
+        this.CANVAS_WIDTH = this.BOARD_WIDTH * this.BLOCK_SIZE;
+        this.CANVAS_HEIGHT = this.BOARD_HEIGHT * this.BLOCK_SIZE;
         
         // 遊戲狀態
         this.gameRunning = false;
         this.gamePaused = false;
         this.score = 0;
-        this.highScore = localStorage.getItem('snakeHighScore') || 0;
+        this.lines = 0;
+        this.level = 1;
+        this.piecesPlaced = 0;
+        this.highScore = localStorage.getItem('tetrisHighScore') || 0;
+        this.startTime = null;
+        this.gameTime = 0;
         
-        // 蛇的初始狀態
-        this.snake = [
-            {x: 10, y: 10}
-        ];
-        this.dx = 0;
-        this.dy = 0;
+        // 遊戲板
+        this.board = this.createBoard();
         
-        // 食物位置
-        this.food = this.generateFood();
+        // 方塊定義
+        this.pieces = {
+            I: {
+                shape: [
+                    [1, 1, 1, 1]
+                ],
+                color: '#00f5ff'
+            },
+            O: {
+                shape: [
+                    [1, 1],
+                    [1, 1]
+                ],
+                color: '#ffff00'
+            },
+            T: {
+                shape: [
+                    [0, 1, 0],
+                    [1, 1, 1]
+                ],
+                color: '#a000f0'
+            },
+            S: {
+                shape: [
+                    [0, 1, 1],
+                    [1, 1, 0]
+                ],
+                color: '#00f000'
+            },
+            Z: {
+                shape: [
+                    [1, 1, 0],
+                    [0, 1, 1]
+                ],
+                color: '#f00000'
+            },
+            J: {
+                shape: [
+                    [1, 0, 0],
+                    [1, 1, 1]
+                ],
+                color: '#0000f0'
+            },
+            L: {
+                shape: [
+                    [0, 0, 1],
+                    [1, 1, 1]
+                ],
+                color: '#ff7f00'
+            }
+        };
         
-        // 視覺效果
+        this.pieceTypes = Object.keys(this.pieces);
+        
+        // 當前方塊
+        this.currentPiece = null;
+        this.nextPiece = null;
+        this.holdPiece = null;
+        this.canHold = true;
+        
+        // 方塊位置
+        this.pieceX = 0;
+        this.pieceY = 0;
+        this.pieceRotation = 0;
+        
+        // 動畫效果
         this.particles = [];
-        this.foodPulse = 0;
-        this.snakeGlow = 0;
-        this.eatAnimation = 0;
+        this.lineClearAnimation = [];
+        this.dropTime = 0;
+        this.lastTime = 0;
         
         // 綁定事件
         this.bindEvents();
         this.updateHighScore();
+        this.generateNextPiece();
+        this.spawnPiece();
         this.gameLoop();
+    }
+    
+    createBoard() {
+        return Array(this.BOARD_HEIGHT).fill().map(() => Array(this.BOARD_WIDTH).fill(0));
     }
     
     bindEvents() {
         // 鍵盤控制
         document.addEventListener('keydown', (e) => {
-            if (!this.gameRunning && e.code !== 'Space') {
-                this.startGame();
+            if (!this.gameRunning) {
+                if (e.code !== 'KeyP') {
+                    this.startGame();
+                }
             }
             
+            if (this.gamePaused) return;
+            
             switch(e.code) {
-                case 'ArrowUp':
-                    if (this.dy !== 1) {
-                        this.dx = 0;
-                        this.dy = -1;
-                    }
-                    break;
-                case 'ArrowDown':
-                    if (this.dy !== -1) {
-                        this.dx = 0;
-                        this.dy = 1;
-                    }
-                    break;
                 case 'ArrowLeft':
-                    if (this.dx !== 1) {
-                        this.dx = -1;
-                        this.dy = 0;
-                    }
+                    e.preventDefault();
+                    this.movePiece(-1, 0);
                     break;
                 case 'ArrowRight':
-                    if (this.dx !== -1) {
-                        this.dx = 1;
-                        this.dy = 0;
-                    }
+                    e.preventDefault();
+                    this.movePiece(1, 0);
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    this.movePiece(0, 1);
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    this.rotatePiece();
                     break;
                 case 'Space':
+                    e.preventDefault();
+                    this.hardDrop();
+                    break;
+                case 'KeyC':
+                    e.preventDefault();
+                    this.holdPiece();
+                    break;
+                case 'KeyP':
                     e.preventDefault();
                     this.togglePause();
                     break;
             }
         });
         
+        // 觸控控制
+        document.getElementById('moveLeft').addEventListener('click', () => this.movePiece(-1, 0));
+        document.getElementById('moveRight').addEventListener('click', () => this.movePiece(1, 0));
+        document.getElementById('softDrop').addEventListener('click', () => this.movePiece(0, 1));
+        document.getElementById('rotate').addEventListener('click', () => this.rotatePiece());
+        document.getElementById('hardDrop').addEventListener('click', () => this.hardDrop());
+        document.getElementById('holdBtn').addEventListener('click', () => this.holdPiece());
+        
         // 重新開始按鈕
-        this.restartBtn.addEventListener('click', () => {
-            this.restartGame();
+        this.restartBtn.addEventListener('click', () => this.restartGame());
+        
+        // 觸控事件
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = this.canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            this.handleTouch(x, y);
         });
+        
+        // 防止觸控滾動
+        document.addEventListener('touchmove', (e) => {
+            if (e.target === this.canvas) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    }
+    
+    handleTouch(x, y) {
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+        
+        if (x < centerX - 50) {
+            this.movePiece(-1, 0);
+        } else if (x > centerX + 50) {
+            this.movePiece(1, 0);
+        } else if (y > centerY + 50) {
+            this.movePiece(0, 1);
+        } else if (y < centerY - 50) {
+            this.rotatePiece();
+        }
     }
     
     startGame() {
         this.gameRunning = true;
         this.gamePaused = false;
+        this.startTime = Date.now();
         this.gameOverElement.style.display = 'none';
+        this.gameOverElement.classList.remove('show');
     }
     
     togglePause() {
@@ -103,83 +232,313 @@ class SnakeGame {
         this.gameRunning = false;
         this.gamePaused = false;
         this.score = 0;
-        this.snake = [{x: 10, y: 10}];
-        this.dx = 0;
-        this.dy = 0;
-        this.food = this.generateFood();
+        this.lines = 0;
+        this.level = 1;
+        this.piecesPlaced = 0;
+        this.gameTime = 0;
+        this.board = this.createBoard();
+        this.currentPiece = null;
+        this.nextPiece = null;
+        this.holdPiece = null;
+        this.canHold = true;
         this.particles = [];
-        this.eatAnimation = 0;
+        this.lineClearAnimation = [];
         this.updateScore();
+        this.generateNextPiece();
+        this.spawnPiece();
         this.gameOverElement.style.display = 'none';
         this.gameOverElement.classList.remove('show');
     }
     
-    generateFood() {
-        let newFood;
-        do {
-            newFood = {
-                x: Math.floor(Math.random() * this.tileCount),
-                y: Math.floor(Math.random() * this.tileCount)
+    generateNextPiece() {
+        const randomType = this.pieceTypes[Math.floor(Math.random() * this.pieceTypes.length)];
+        this.nextPiece = {
+            type: randomType,
+            shape: this.pieces[randomType].shape,
+            color: this.pieces[randomType].color
+        };
+    }
+    
+    spawnPiece() {
+        if (this.nextPiece) {
+            this.currentPiece = this.nextPiece;
+            this.generateNextPiece();
+        } else {
+            const randomType = this.pieceTypes[Math.floor(Math.random() * this.pieceTypes.length)];
+            this.currentPiece = {
+                type: randomType,
+                shape: this.pieces[randomType].shape,
+                color: this.pieces[randomType].color
             };
-        } while (this.snake.some(segment => segment.x === newFood.x && segment.y === newFood.y));
+        }
         
-        return newFood;
+        this.pieceX = Math.floor(this.BOARD_WIDTH / 2) - Math.floor(this.currentPiece.shape[0].length / 2);
+        this.pieceY = 0;
+        this.pieceRotation = 0;
+        this.canHold = true;
+        
+        if (this.checkCollision()) {
+            this.gameOver();
+        }
+    }
+    
+    movePiece(dx, dy) {
+        if (!this.currentPiece) return;
+        
+        const newX = this.pieceX + dx;
+        const newY = this.pieceY + dy;
+        
+        if (this.isValidPosition(newX, newY, this.currentPiece.shape)) {
+            this.pieceX = newX;
+            this.pieceY = newY;
+            return true;
+        }
+        return false;
+    }
+    
+    rotatePiece() {
+        if (!this.currentPiece) return;
+        
+        const rotated = this.rotateMatrix(this.currentPiece.shape);
+        if (this.isValidPosition(this.pieceX, this.pieceY, rotated)) {
+            this.currentPiece.shape = rotated;
+            this.pieceRotation = (this.pieceRotation + 1) % 4;
+        }
+    }
+    
+    rotateMatrix(matrix) {
+        const rows = matrix.length;
+        const cols = matrix[0].length;
+        const rotated = Array(cols).fill().map(() => Array(rows).fill(0));
+        
+        for (let i = 0; i < rows; i++) {
+            for (let j = 0; j < cols; j++) {
+                rotated[j][rows - 1 - i] = matrix[i][j];
+            }
+        }
+        
+        return rotated;
+    }
+    
+    hardDrop() {
+        while (this.movePiece(0, 1)) {
+            this.score += 2; // 快速下降獎勵分數
+        }
+        this.placePiece();
+    }
+    
+    holdPiece() {
+        if (!this.canHold || !this.currentPiece) return;
+        
+        if (this.holdPiece) {
+            // 交換當前方塊和存放方塊
+            const temp = this.currentPiece;
+            this.currentPiece = this.holdPiece;
+            this.holdPiece = temp;
+        } else {
+            // 存放當前方塊
+            this.holdPiece = this.currentPiece;
+            this.spawnPiece();
+        }
+        
+        this.canHold = false;
+        this.pieceX = Math.floor(this.BOARD_WIDTH / 2) - Math.floor(this.currentPiece.shape[0].length / 2);
+        this.pieceY = 0;
+        this.pieceRotation = 0;
+    }
+    
+    isValidPosition(x, y, shape) {
+        for (let row = 0; row < shape.length; row++) {
+            for (let col = 0; col < shape[row].length; col++) {
+                if (shape[row][col]) {
+                    const newX = x + col;
+                    const newY = y + row;
+                    
+                    if (newX < 0 || newX >= this.BOARD_WIDTH || 
+                        newY >= this.BOARD_HEIGHT || 
+                        (newY >= 0 && this.board[newY][newX])) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+    
+    checkCollision() {
+        return !this.isValidPosition(this.pieceX, this.pieceY, this.currentPiece.shape);
+    }
+    
+    placePiece() {
+        if (!this.currentPiece) return;
+        
+        for (let row = 0; row < this.currentPiece.shape.length; row++) {
+            for (let col = 0; col < this.currentPiece.shape[row].length; col++) {
+                if (this.currentPiece.shape[row][col]) {
+                    const x = this.pieceX + col;
+                    const y = this.pieceY + row;
+                    if (y >= 0) {
+                        this.board[y][x] = this.currentPiece.color;
+                    }
+                }
+            }
+        }
+        
+        this.piecesPlaced++;
+        this.createPlaceParticles();
+        this.clearLines();
+        this.spawnPiece();
+        this.updateScore();
+    }
+    
+    clearLines() {
+        const linesToClear = [];
+        
+        for (let row = this.BOARD_HEIGHT - 1; row >= 0; row--) {
+            if (this.board[row].every(cell => cell !== 0)) {
+                linesToClear.push(row);
+            }
+        }
+        
+        if (linesToClear.length > 0) {
+            this.lines += linesToClear.length;
+            this.level = Math.floor(this.lines / 10) + 1;
+            
+            // 計算分數
+            const baseScore = [0, 40, 100, 300, 1200][linesToClear.length] * this.level;
+            this.score += baseScore;
+            
+            // 行消除動畫
+            this.lineClearAnimation = linesToClear;
+            
+            // 延遲移除行
+            setTimeout(() => {
+                this.removeLines(linesToClear);
+                this.lineClearAnimation = [];
+            }, 300);
+        }
+    }
+    
+    removeLines(linesToClear) {
+        for (let i = linesToClear.length - 1; i >= 0; i--) {
+            this.board.splice(linesToClear[i], 1);
+            this.board.unshift(Array(this.BOARD_WIDTH).fill(0));
+        }
+    }
+    
+    createPlaceParticles() {
+        const centerX = (this.pieceX + this.currentPiece.shape[0].length / 2) * this.BLOCK_SIZE;
+        const centerY = (this.pieceY + this.currentPiece.shape.length / 2) * this.BLOCK_SIZE;
+        
+        for (let i = 0; i < 12; i++) {
+            this.particles.push({
+                x: centerX,
+                y: centerY,
+                vx: (Math.random() - 0.5) * 8,
+                vy: (Math.random() - 0.5) * 8,
+                life: 1,
+                alpha: 1,
+                color: this.currentPiece.color
+            });
+        }
+    }
+    
+    updateScore() {
+        this.scoreElement.textContent = this.score;
+        this.linesElement.textContent = this.lines;
+        this.levelElement.textContent = this.level;
+        this.piecesPlacedElement.textContent = this.piecesPlaced;
+        this.gameSpeedElement.textContent = this.level;
+        
+        if (this.score > this.highScore) {
+            this.highScore = this.score;
+            this.updateHighScore();
+            localStorage.setItem('tetrisHighScore', this.highScore);
+        }
+    }
+    
+    updateHighScore() {
+        this.highScoreElement.textContent = this.highScore;
+    }
+    
+    updateGameTime() {
+        if (this.gameRunning && this.startTime) {
+            this.gameTime = Math.floor((Date.now() - this.startTime) / 1000);
+            const minutes = Math.floor(this.gameTime / 60);
+            const seconds = this.gameTime % 60;
+            this.gameTimeElement.textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+    }
+    
+    gameOver() {
+        this.gameRunning = false;
+        this.finalScoreElement.textContent = this.score;
+        this.finalLinesElement.textContent = this.lines;
+        this.finalLevelElement.textContent = this.level;
+        this.gameOverElement.style.display = 'block';
+        this.gameOverElement.classList.add('show');
     }
     
     update() {
         if (!this.gameRunning || this.gamePaused) return;
         
-        // 移動蛇頭
-        const head = {x: this.snake[0].x + this.dx, y: this.snake[0].y + this.dy};
+        this.updateGameTime();
         
-        // 檢查牆壁碰撞
-        if (head.x < 0 || head.x >= this.tileCount || head.y < 0 || head.y >= this.tileCount) {
-            this.gameOver();
-            return;
+        // 自動下降
+        const currentTime = Date.now();
+        const deltaTime = currentTime - this.lastTime;
+        this.lastTime = currentTime;
+        
+        this.dropTime += deltaTime;
+        const dropInterval = Math.max(50, 1000 - (this.level - 1) * 100);
+        
+        if (this.dropTime >= dropInterval) {
+            if (!this.movePiece(0, 1)) {
+                this.placePiece();
+            }
+            this.dropTime = 0;
         }
         
-        // 檢查自身碰撞
-        if (this.snake.some(segment => segment.x === head.x && segment.y === head.y)) {
-            this.gameOver();
-            return;
-        }
-        
-        this.snake.unshift(head);
-        
-        // 檢查是否吃到食物
-        if (head.x === this.food.x && head.y === this.food.y) {
-            this.score += 10;
-            this.updateScore();
-            this.food = this.generateFood();
-            this.eatAnimation = 1;
-            this.createEatParticles(head.x, head.y);
-        } else {
-            this.snake.pop();
-        }
+        // 更新粒子
+        this.particles = this.particles.filter(particle => {
+            particle.x += particle.vx;
+            particle.y += particle.vy;
+            particle.life -= 0.02;
+            particle.alpha = particle.life;
+            particle.vx *= 0.98;
+            particle.vy *= 0.98;
+            return particle.life > 0;
+        });
     }
     
     draw() {
-        // 清空畫布
-        const gradient = this.ctx.createLinearGradient(0, 0, this.canvas.width, this.canvas.height);
-        gradient.addColorStop(0, '#2c3e50');
-        gradient.addColorStop(1, '#34495e');
-        this.ctx.fillStyle = gradient;
+        // 清空主畫布
+        this.ctx.fillStyle = '#2c3e50';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        // 更新動畫
-        this.updateAnimations();
         
         // 繪製網格
         this.drawGrid();
         
-        // 繪製粒子效果
+        // 繪製已放置的方塊
+        this.drawBoard();
+        
+        // 繪製當前方塊
+        if (this.currentPiece) {
+            this.drawPiece(this.currentPiece, this.pieceX, this.pieceY, this.ctx);
+        }
+        
+        // 繪製行消除動畫
+        this.drawLineClearAnimation();
+        
+        // 繪製粒子
         this.drawParticles();
         
-        // 繪製蛇
-        this.drawSnake();
+        // 繪製下一個方塊
+        this.drawNextPiece();
         
-        // 繪製食物
-        this.drawFood();
+        // 繪製存放方塊
+        this.drawHoldPiece();
         
         // 繪製暫停提示
         if (this.gamePaused) {
@@ -191,116 +550,133 @@ class SnakeGame {
         this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
         this.ctx.lineWidth = 1;
         
-        for (let i = 0; i <= this.tileCount; i++) {
+        for (let x = 0; x <= this.BOARD_WIDTH; x++) {
             this.ctx.beginPath();
-            this.ctx.moveTo(i * this.gridSize, 0);
-            this.ctx.lineTo(i * this.gridSize, this.canvas.height);
+            this.ctx.moveTo(x * this.BLOCK_SIZE, 0);
+            this.ctx.lineTo(x * this.BLOCK_SIZE, this.canvas.height);
             this.ctx.stroke();
-            
+        }
+        
+        for (let y = 0; y <= this.BOARD_HEIGHT; y++) {
             this.ctx.beginPath();
-            this.ctx.moveTo(0, i * this.gridSize);
-            this.ctx.lineTo(this.canvas.width, i * this.gridSize);
+            this.ctx.moveTo(0, y * this.BLOCK_SIZE);
+            this.ctx.lineTo(this.canvas.width, y * this.BLOCK_SIZE);
             this.ctx.stroke();
         }
     }
     
-    drawSnake() {
-        this.snake.forEach((segment, index) => {
-            const x = segment.x * this.gridSize;
-            const y = segment.y * this.gridSize;
-            
-            if (index === 0) {
-                // 蛇頭 - 添加發光效果
-                this.ctx.save();
-                this.ctx.shadowColor = '#4ecdc4';
-                this.ctx.shadowBlur = 10 + this.snakeGlow * 5;
-                
-                // 蛇頭漸變
-                const headGradient = this.ctx.createRadialGradient(
-                    x + this.gridSize/2, y + this.gridSize/2, 0,
-                    x + this.gridSize/2, y + this.gridSize/2, this.gridSize/2
-                );
-                headGradient.addColorStop(0, '#4ecdc4');
-                headGradient.addColorStop(1, '#26a69a');
-                this.ctx.fillStyle = headGradient;
-                
-                this.ctx.fillRect(x + 1, y + 1, this.gridSize - 2, this.gridSize - 2);
-                
-                // 蛇頭的眼睛
-                this.ctx.shadowBlur = 0;
-                this.ctx.fillStyle = '#2c3e50';
-                const eyeSize = 3;
-                const eyeOffset = 5;
-                this.ctx.fillRect(x + eyeOffset, y + eyeOffset, eyeSize, eyeSize);
-                this.ctx.fillRect(x + this.gridSize - eyeOffset - eyeSize, y + eyeOffset, eyeSize, eyeSize);
-                
-                // 眼睛高光
-                this.ctx.fillStyle = '#fff';
-                this.ctx.fillRect(x + eyeOffset + 1, y + eyeOffset + 1, 1, 1);
-                this.ctx.fillRect(x + this.gridSize - eyeOffset - eyeSize + 1, y + eyeOffset + 1, 1, 1);
-                
-                this.ctx.restore();
-            } else {
-                // 蛇身 - 漸變效果
-                const bodyGradient = this.ctx.createLinearGradient(x, y, x + this.gridSize, y + this.gridSize);
-                bodyGradient.addColorStop(0, '#45b7b8');
-                bodyGradient.addColorStop(1, '#26a69a');
-                this.ctx.fillStyle = bodyGradient;
-                
-                this.ctx.fillRect(x + 2, y + 2, this.gridSize - 4, this.gridSize - 4);
-                
-                // 蛇身邊框
-                this.ctx.strokeStyle = '#1de9b6';
-                this.ctx.lineWidth = 1;
-                this.ctx.strokeRect(x + 2, y + 2, this.gridSize - 4, this.gridSize - 4);
+    drawBoard() {
+        for (let row = 0; row < this.BOARD_HEIGHT; row++) {
+            for (let col = 0; col < this.BOARD_WIDTH; col++) {
+                if (this.board[row][col]) {
+                    this.drawBlock(col, row, this.board[row][col], this.ctx);
+                }
             }
+        }
+    }
+    
+    drawPiece(piece, x, y, ctx) {
+        for (let row = 0; row < piece.shape.length; row++) {
+            for (let col = 0; col < piece.shape[row].length; col++) {
+                if (piece.shape[row][col]) {
+                    this.drawBlock(x + col, y + row, piece.color, ctx, true);
+                }
+            }
+        }
+    }
+    
+    drawBlock(x, y, color, ctx, isGhost = false) {
+        const pixelX = x * this.BLOCK_SIZE;
+        const pixelY = y * this.BLOCK_SIZE;
+        
+        ctx.save();
+        
+        if (isGhost) {
+            ctx.globalAlpha = 0.3;
+        }
+        
+        // 方塊主體
+        ctx.fillStyle = color;
+        ctx.fillRect(pixelX + 1, pixelY + 1, this.BLOCK_SIZE - 2, this.BLOCK_SIZE - 2);
+        
+        // 方塊邊框
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(pixelX + 1, pixelY + 1, this.BLOCK_SIZE - 2, this.BLOCK_SIZE - 2);
+        
+        // 高光效果
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.fillRect(pixelX + 2, pixelY + 2, this.BLOCK_SIZE - 4, 2);
+        ctx.fillRect(pixelX + 2, pixelY + 2, 2, this.BLOCK_SIZE - 4);
+        
+        ctx.restore();
+    }
+    
+    drawLineClearAnimation() {
+        if (this.lineClearAnimation.length > 0) {
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            for (const row of this.lineClearAnimation) {
+                this.ctx.fillRect(0, row * this.BLOCK_SIZE, this.canvas.width, this.BLOCK_SIZE);
+            }
+        }
+    }
+    
+    drawParticles() {
+        this.particles.forEach(particle => {
+            this.ctx.save();
+            this.ctx.globalAlpha = particle.alpha;
+            this.ctx.fillStyle = particle.color;
+            this.ctx.beginPath();
+            this.ctx.arc(particle.x, particle.y, 3, 0, 2 * Math.PI);
+            this.ctx.fill();
+            this.ctx.restore();
         });
     }
     
-    drawFood() {
-        const centerX = this.food.x * this.gridSize + this.gridSize / 2;
-        const centerY = this.food.y * this.gridSize + this.gridSize / 2;
-        const radius = this.gridSize / 2 - 2;
+    drawNextPiece() {
+        this.nextCtx.fillStyle = '#2c3e50';
+        this.nextCtx.fillRect(0, 0, this.nextCanvas.width, this.nextCanvas.height);
         
-        // 食物脈衝效果
-        const pulseRadius = radius + Math.sin(this.foodPulse) * 2;
-        
-        this.ctx.save();
-        
-        // 食物發光效果
-        this.ctx.shadowColor = '#ff6b6b';
-        this.ctx.shadowBlur = 15;
-        
-        // 食物漸變
-        const foodGradient = this.ctx.createRadialGradient(
-            centerX - 3, centerY - 3, 0,
-            centerX, centerY, pulseRadius
-        );
-        foodGradient.addColorStop(0, '#ff8e8e');
-        foodGradient.addColorStop(0.7, '#ff6b6b');
-        foodGradient.addColorStop(1, '#e53e3e');
-        
-        this.ctx.fillStyle = foodGradient;
-        this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY, pulseRadius, 0, 2 * Math.PI);
-        this.ctx.fill();
-        
-        // 食物高光
-        this.ctx.shadowBlur = 0;
-        this.ctx.fillStyle = '#ffb3ba';
-        this.ctx.beginPath();
-        this.ctx.arc(centerX - 3, centerY - 3, pulseRadius / 3, 0, 2 * Math.PI);
-        this.ctx.fill();
-        
-        // 食物閃爍效果
-        if (Math.sin(this.foodPulse * 2) > 0.8) {
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-            this.ctx.beginPath();
-            this.ctx.arc(centerX, centerY, pulseRadius / 2, 0, 2 * Math.PI);
-            this.ctx.fill();
+        if (this.nextPiece) {
+            const offsetX = (this.nextCanvas.width - this.nextPiece.shape[0].length * 20) / 2;
+            const offsetY = (this.nextCanvas.height - this.nextPiece.shape.length * 20) / 2;
+            
+            for (let row = 0; row < this.nextPiece.shape.length; row++) {
+                for (let col = 0; col < this.nextPiece.shape[row].length; col++) {
+                    if (this.nextPiece.shape[row][col]) {
+                        this.nextCtx.fillStyle = this.nextPiece.color;
+                        this.nextCtx.fillRect(
+                            offsetX + col * 20 + 1,
+                            offsetY + row * 20 + 1,
+                            18, 18
+                        );
+                    }
+                }
+            }
         }
+    }
+    
+    drawHoldPiece() {
+        this.holdCtx.fillStyle = '#2c3e50';
+        this.holdCtx.fillRect(0, 0, this.holdCanvas.width, this.holdCanvas.height);
         
-        this.ctx.restore();
+        if (this.holdPiece) {
+            const offsetX = (this.holdCanvas.width - this.holdPiece.shape[0].length * 20) / 2;
+            const offsetY = (this.holdCanvas.height - this.holdPiece.shape.length * 20) / 2;
+            
+            for (let row = 0; row < this.holdPiece.shape.length; row++) {
+                for (let col = 0; col < this.holdPiece.shape[row].length; col++) {
+                    if (this.holdPiece.shape[row][col]) {
+                        this.holdCtx.fillStyle = this.holdPiece.color;
+                        this.holdCtx.fillRect(
+                            offsetX + col * 20 + 1,
+                            offsetY + row * 20 + 1,
+                            18, 18
+                        );
+                    }
+                }
+            }
+        }
     }
     
     drawPauseText() {
@@ -312,108 +688,17 @@ class SnakeGame {
         this.ctx.textAlign = 'center';
         this.ctx.fillText('遊戲暫停', this.canvas.width / 2, this.canvas.height / 2 - 10);
         this.ctx.font = '16px Arial';
-        this.ctx.fillText('按空白鍵繼續', this.canvas.width / 2, this.canvas.height / 2 + 20);
-    }
-    
-    updateScore() {
-        this.scoreElement.textContent = this.score;
-        this.snakeLengthElement.textContent = this.snake.length;
-        
-        // 根據分數調整遊戲速度
-        let speed = 150;
-        let speedText = '正常';
-        
-        if (this.score >= 50) {
-            speed = 120;
-            speedText = '快速';
-        } else if (this.score >= 100) {
-            speed = 100;
-            speedText = '極快';
-        } else if (this.score >= 200) {
-            speed = 80;
-            speedText = '瘋狂';
-        }
-        
-        this.gameSpeedElement.textContent = speedText;
-        this.gameSpeed = speed;
-        
-        if (this.score > this.highScore) {
-            this.highScore = this.score;
-            this.updateHighScore();
-            localStorage.setItem('snakeHighScore', this.highScore);
-        }
-    }
-    
-    updateHighScore() {
-        this.highScoreElement.textContent = this.highScore;
-    }
-    
-    updateAnimations() {
-        // 更新食物脈衝
-        this.foodPulse += 0.1;
-        
-        // 更新蛇的發光效果
-        this.snakeGlow = Math.sin(this.foodPulse * 0.5) * 0.5 + 0.5;
-        
-        // 更新吃食物動畫
-        if (this.eatAnimation > 0) {
-            this.eatAnimation -= 0.05;
-        }
-        
-        // 更新粒子
-        this.particles = this.particles.filter(particle => {
-            particle.x += particle.vx;
-            particle.y += particle.vy;
-            particle.life -= 0.02;
-            particle.alpha = particle.life;
-            return particle.life > 0;
-        });
-    }
-    
-    createEatParticles(x, y) {
-        const centerX = x * this.gridSize + this.gridSize / 2;
-        const centerY = y * this.gridSize + this.gridSize / 2;
-        
-        for (let i = 0; i < 8; i++) {
-            this.particles.push({
-                x: centerX,
-                y: centerY,
-                vx: (Math.random() - 0.5) * 4,
-                vy: (Math.random() - 0.5) * 4,
-                life: 1,
-                alpha: 1,
-                color: `hsl(${Math.random() * 60 + 15}, 70%, 60%)`
-            });
-        }
-    }
-    
-    drawParticles() {
-        this.particles.forEach(particle => {
-            this.ctx.save();
-            this.ctx.globalAlpha = particle.alpha;
-            this.ctx.fillStyle = particle.color;
-            this.ctx.beginPath();
-            this.ctx.arc(particle.x, particle.y, 2, 0, 2 * Math.PI);
-            this.ctx.fill();
-            this.ctx.restore();
-        });
-    }
-    
-    gameOver() {
-        this.gameRunning = false;
-        this.finalScoreElement.textContent = this.score;
-        this.gameOverElement.style.display = 'block';
-        this.gameOverElement.classList.add('show');
+        this.ctx.fillText('按 P 繼續', this.canvas.width / 2, this.canvas.height / 2 + 20);
     }
     
     gameLoop() {
         this.update();
         this.draw();
-        setTimeout(() => this.gameLoop(), this.gameSpeed || 150);
+        requestAnimationFrame(() => this.gameLoop());
     }
 }
 
 // 初始化遊戲
 document.addEventListener('DOMContentLoaded', () => {
-    new SnakeGame();
+    new TetrisGame();
 });
