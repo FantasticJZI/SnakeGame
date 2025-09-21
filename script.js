@@ -171,12 +171,53 @@ class TetrisGame {
         });
         
         // 觸控控制
-        document.getElementById('moveLeft').addEventListener('click', () => this.movePiece(-1, 0));
-        document.getElementById('moveRight').addEventListener('click', () => this.movePiece(1, 0));
-        document.getElementById('softDrop').addEventListener('click', () => this.movePiece(0, 1));
-        document.getElementById('rotate').addEventListener('click', () => this.rotatePiece());
-        document.getElementById('hardDrop').addEventListener('click', () => this.hardDrop());
-        document.getElementById('holdBtn').addEventListener('click', () => this.holdPiece());
+        document.getElementById('moveLeft').addEventListener('click', () => {
+            if (this.gameRunning && !this.gamePaused) {
+                this.movePiece(-1, 0);
+            } else if (!this.gameRunning) {
+                this.startGame();
+            }
+        });
+        
+        document.getElementById('moveRight').addEventListener('click', () => {
+            if (this.gameRunning && !this.gamePaused) {
+                this.movePiece(1, 0);
+            } else if (!this.gameRunning) {
+                this.startGame();
+            }
+        });
+        
+        document.getElementById('softDrop').addEventListener('click', () => {
+            if (this.gameRunning && !this.gamePaused) {
+                this.movePiece(0, 1);
+            } else if (!this.gameRunning) {
+                this.startGame();
+            }
+        });
+        
+        document.getElementById('rotate').addEventListener('click', () => {
+            if (this.gameRunning && !this.gamePaused) {
+                this.rotatePiece();
+            } else if (!this.gameRunning) {
+                this.startGame();
+            }
+        });
+        
+        document.getElementById('hardDrop').addEventListener('click', () => {
+            if (this.gameRunning && !this.gamePaused) {
+                this.hardDrop();
+            } else if (!this.gameRunning) {
+                this.startGame();
+            }
+        });
+        
+        document.getElementById('holdBtn').addEventListener('click', () => {
+            if (this.gameRunning && !this.gamePaused) {
+                this.holdPiece();
+            } else if (!this.gameRunning) {
+                this.startGame();
+            }
+        });
         
         // 重新開始按鈕
         this.restartBtn.addEventListener('click', () => this.restartGame());
@@ -200,17 +241,31 @@ class TetrisGame {
     }
     
     handleTouch(x, y) {
+        if (!this.gameRunning || this.gamePaused) return;
+        
         const centerX = this.canvas.width / 2;
         const centerY = this.canvas.height / 2;
+        const threshold = 60; // 增加觸控區域
         
-        if (x < centerX - 50) {
+        // 左側區域 - 左移
+        if (x < centerX - threshold) {
             this.movePiece(-1, 0);
-        } else if (x > centerX + 50) {
+        }
+        // 右側區域 - 右移
+        else if (x > centerX + threshold) {
             this.movePiece(1, 0);
-        } else if (y > centerY + 50) {
+        }
+        // 下方區域 - 快速下降
+        else if (y > centerY + threshold) {
             this.movePiece(0, 1);
-        } else if (y < centerY - 50) {
+        }
+        // 上方區域 - 旋轉
+        else if (y < centerY - threshold) {
             this.rotatePiece();
+        }
+        // 中央區域 - 瞬間下降
+        else {
+            this.hardDrop();
         }
     }
     
@@ -330,14 +385,24 @@ class TetrisGame {
     holdPiece() {
         if (!this.canHold || !this.currentPiece) return;
         
+        // 創建方塊的深拷貝，重置旋轉狀態
+        const pieceToHold = {
+            type: this.currentPiece.type,
+            shape: this.pieces[this.currentPiece.type].shape.map(row => [...row]),
+            color: this.currentPiece.color
+        };
+        
         if (this.holdPiece) {
             // 交換當前方塊和存放方塊
-            const temp = this.currentPiece;
-            this.currentPiece = this.holdPiece;
-            this.holdPiece = temp;
+            this.currentPiece = {
+                type: this.holdPiece.type,
+                shape: this.holdPiece.shape.map(row => [...row]),
+                color: this.holdPiece.color
+            };
+            this.holdPiece = pieceToHold;
         } else {
             // 存放當前方塊
-            this.holdPiece = this.currentPiece;
+            this.holdPiece = pieceToHold;
             this.spawnPiece();
         }
         
@@ -345,6 +410,11 @@ class TetrisGame {
         this.pieceX = Math.floor(this.BOARD_WIDTH / 2) - Math.floor(this.currentPiece.shape[0].length / 2);
         this.pieceY = 0;
         this.pieceRotation = 0;
+        
+        // 檢查新方塊位置是否有效
+        if (this.checkCollision()) {
+            this.gameOver();
+        }
     }
     
     isValidPosition(x, y, shape) {
@@ -661,18 +731,29 @@ class TetrisGame {
         this.holdCtx.fillRect(0, 0, this.holdCanvas.width, this.holdCanvas.height);
         
         if (this.holdPiece) {
-            const offsetX = (this.holdCanvas.width - this.holdPiece.shape[0].length * 20) / 2;
-            const offsetY = (this.holdCanvas.height - this.holdPiece.shape.length * 20) / 2;
+            const blockSize = 20;
+            const offsetX = (this.holdCanvas.width - this.holdPiece.shape[0].length * blockSize) / 2;
+            const offsetY = (this.holdCanvas.height - this.holdPiece.shape.length * blockSize) / 2;
             
             for (let row = 0; row < this.holdPiece.shape.length; row++) {
                 for (let col = 0; col < this.holdPiece.shape[row].length; col++) {
                     if (this.holdPiece.shape[row][col]) {
+                        const x = offsetX + col * blockSize;
+                        const y = offsetY + row * blockSize;
+                        
+                        // 方塊主體
                         this.holdCtx.fillStyle = this.holdPiece.color;
-                        this.holdCtx.fillRect(
-                            offsetX + col * 20 + 1,
-                            offsetY + row * 20 + 1,
-                            18, 18
-                        );
+                        this.holdCtx.fillRect(x + 1, y + 1, blockSize - 2, blockSize - 2);
+                        
+                        // 方塊邊框
+                        this.holdCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                        this.holdCtx.lineWidth = 1;
+                        this.holdCtx.strokeRect(x + 1, y + 1, blockSize - 2, blockSize - 2);
+                        
+                        // 高光效果
+                        this.holdCtx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                        this.holdCtx.fillRect(x + 2, y + 2, blockSize - 4, 2);
+                        this.holdCtx.fillRect(x + 2, y + 2, 2, blockSize - 4);
                     }
                 }
             }
