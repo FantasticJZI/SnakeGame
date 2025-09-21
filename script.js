@@ -141,7 +141,18 @@ class TetrisGame {
                 return;
             }
             
-            // 如果遊戲未開始，除了P鍵外其他鍵都開始遊戲
+            // 處理存放方塊（C鍵）- 在暫停檢查之前
+            if (e.code === 'KeyC') {
+                e.preventDefault();
+                if (!this.gameRunning) {
+                    this.startGame();
+                } else if (!this.gamePaused) {
+                    this.holdPiece();
+                }
+                return;
+            }
+            
+            // 如果遊戲未開始，其他鍵都開始遊戲
             if (!this.gameRunning) {
                 this.startGame();
             }
@@ -169,10 +180,6 @@ class TetrisGame {
                 case 'Space':
                     e.preventDefault();
                     this.hardDrop();
-                    break;
-                case 'KeyC':
-                    e.preventDefault();
-                    this.holdPiece();
                     break;
             }
         });
@@ -257,7 +264,14 @@ class TetrisGame {
     }
     
     handleTouch(x, y) {
-        if (!this.gameRunning || this.gamePaused) return;
+        // 如果遊戲未開始，開始遊戲
+        if (!this.gameRunning) {
+            this.startGame();
+            return;
+        }
+        
+        // 如果遊戲暫停，不處理觸控
+        if (this.gamePaused) return;
         
         const centerX = this.canvas.width / 2;
         const centerY = this.canvas.height / 2;
@@ -410,6 +424,7 @@ class TetrisGame {
     }
     
     holdPiece() {
+        console.log('holdPiece called, canHold:', this.canHold, 'currentPiece:', this.currentPiece);
         if (!this.canHold || !this.currentPiece) return;
         
         // 創建方塊的深拷貝，重置旋轉狀態
@@ -419,7 +434,7 @@ class TetrisGame {
             color: this.currentPiece.color
         };
         
-        if (this.holdPiece) {
+        if (this.holdPiece !== null) {
             // 交換當前方塊和存放方塊
             this.currentPiece = {
                 type: this.holdPiece.type,
