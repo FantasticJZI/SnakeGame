@@ -144,6 +144,7 @@ class TetrisGame {
             // 處理存放方塊（C鍵）- 在暫停檢查之前
             if (e.code === 'KeyC') {
                 e.preventDefault();
+                console.log('C key pressed, gameRunning:', this.gameRunning, 'gamePaused:', this.gamePaused);
                 if (!this.gameRunning) {
                     this.startGame();
                 } else if (!this.gamePaused) {
@@ -226,6 +227,7 @@ class TetrisGame {
         });
         
         document.getElementById('holdBtn').addEventListener('click', () => {
+            console.log('Hold button clicked, gameRunning:', this.gameRunning, 'gamePaused:', this.gamePaused);
             if (!this.gameRunning) {
                 this.startGame();
             } else if (!this.gamePaused) {
@@ -235,6 +237,10 @@ class TetrisGame {
         
         // 重新開始按鈕
         this.restartBtn.addEventListener('click', () => this.restartGame());
+        
+        // 測試按鈕綁定
+        console.log('Hold button element:', document.getElementById('holdBtn'));
+        console.log('All touch buttons:', document.querySelectorAll('.touch-btn'));
         
         // 暫停按鈕
         document.getElementById('pauseBtn').addEventListener('click', () => {
@@ -424,8 +430,12 @@ class TetrisGame {
     }
     
     holdPiece() {
-        console.log('holdPiece called, canHold:', this.canHold, 'currentPiece:', this.currentPiece);
-        if (!this.canHold || !this.currentPiece) return;
+        if (!this.canHold || !this.currentPiece) {
+            console.log('Cannot hold piece:', { canHold: this.canHold, currentPiece: this.currentPiece });
+            return;
+        }
+        
+        console.log('Holding piece:', this.currentPiece.type);
         
         // 創建方塊的深拷貝，重置旋轉狀態
         const pieceToHold = {
@@ -436,6 +446,7 @@ class TetrisGame {
         
         if (this.holdPiece !== null) {
             // 交換當前方塊和存放方塊
+            console.log('Swapping with held piece:', this.holdPiece.type);
             this.currentPiece = {
                 type: this.holdPiece.type,
                 shape: this.holdPiece.shape.map(row => [...row]),
@@ -444,6 +455,7 @@ class TetrisGame {
             this.holdPiece = pieceToHold;
         } else {
             // 存放當前方塊
+            console.log('Holding new piece:', pieceToHold.type);
             this.holdPiece = pieceToHold;
             this.spawnPiece();
         }
